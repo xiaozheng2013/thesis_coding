@@ -12,7 +12,28 @@ this is the c++ code for the DNO in Navier's equation.
 using namespace std;
 complex<double> one(0,1);
 
+void mult(int nx,int ny,complex<double> a, complex<double> *x, complex<double> *y)
+{
+	for(int i=0;i<nx*ny;i++)
+		y[i] = a*x[i];
+}
+
+double radius ( complex<double> c )
+// Returns the radius of the complex number.
+{
+   double result,re,im;
+   re = real(c);im=imag(c);
+   result = re*re + im*im;
+   return sqrt(result);
+}
+
 void init(complex<double>* a, int b)
+{
+	for(int i=0;i<b;i++)
+		a[i] = 0.0;
+}
+
+void init(double* a, int b)
 {
 	for(int i=0;i<b;i++)
 		a[i] = 0.0;
@@ -21,8 +42,7 @@ void init(complex<double>* a, int b)
 void fc2c(fftw_complex *in, complex<double> *out, int n)  //http://www.physicsforums.com/showthread.php?t=97608
 {
 	int i;
-	for(i=0;i<n;i++) 
-	{
+	for(i=0;i<n;i++) {
 		out[i] = complex<double>(in[i][0],in[i][1]);
 	}
 }
@@ -165,6 +185,112 @@ void cpnsetup3d(int nx,int ny,complex<double>* fhat,int N,complex<double>* fpn)
 
 }
 
+void complexBackSubstitution(complex<double> *U[],
+                     complex<double> *b,
+                     complex<double> *x,
+                     int M)
+{
+  int j,k,n;
+  complex<double> sum;
+
+
+  for(j=M-1;j>=0;j--){
+    sum = 0.0;
+    for(k=j+1;k<M;k++){
+      sum += U[j][k]*x[k];
+      }
+    x[j]=(b[j]-sum)/U[j][j];
+    }
+
+} 
+
+void complexTriangulate(complex<double> *A[],
+                complex<double> *b,
+                complex<double> *C[],
+                complex<double> *d,
+                int M)
+{
+  complex<double> temprow[M];
+  complex<double> potentialpivot,pivot,factor,tempd;
+  int j,k,m,n,pivotrow;
+
+  //n = b.Length();
+  n = M;
+  for(j=0;j<M;j++)
+  {
+      temprow[j] = 0.0;
+      d[j] = b[j];
+      for(m=0;m<M;m++)
+          C[j][m] = A[j][m];
+  }
+ 	for(j=0;j<M-1;j++){
+
+    /* Find largest pivot */
+    pivot = C[j][j];
+    pivotrow = j;
+    for(m=j+1;m<n;m++){
+      potentialpivot = C[m][j];
+      //      if(fabs(potentialpivot)>fabs(pivot)){
+      double judge;
+      judge = radius(potentialpivot) - radius(pivot);
+      if( judge > 1e-10 ){
+    pivot = potentialpivot;
+    pivotrow = m;
+    }
+      }
+
+    /* Interchange rows and RHS */
+    for(m=0;m<n;m++){
+      temprow[m] = C[j][m];
+      C[j][m] = C[pivotrow][m];
+      C[pivotrow][m] = temprow[m];
+      }
+ 	tempd = d[j];
+    d[j] = d[pivotrow];
+    d[pivotrow] = tempd;
+
+    /* Resume factorization */
+    for(k=j+1;k<M;k++){
+      factor = C[k][j]/C[j][j];
+      for(m=j;m<n;m++)
+      {
+
+          C[k][m] = C[k][m] - factor * C[j][m];
+      }
+      d[k] = d[k] - factor * d[j];
+      }
+    }
+
+} 
+
+void complexGaussElimination(complex<double> *A[],
+                     complex<double> *b,
+                     complex<double> *x, int M)
+{
+  complex<double> *C[M];
+  complex<double> d[M];
+
+  for(int i=0;i<M;i++)
+  {
+    d[i] = 0.0;
+    C[i] = (complex<double> *)calloc(M,sizeof(complex<double>));
+    for(int j = 0;j<M;j++)
+        C[i][j] = 0.0;
+  }
+
+  complexTriangulate(A,b,C,d,M);
+  complexBackSubstitution(C,d,x,M);
+
+}  
+
+void solve_DNSO(int nx1,int nx2,int N,complex<double>* fpn,double* alpha1p,double* alpha2p,complex<double>* betap1,complex<double>* betap2,complex<double>* Un1,complex<double>* Un2,complex<double>* Un3,double lambda,double mu,complex<double>* Gn_m_qUq1,complex<double>* Gn_m_qUq2,complex<double>* Gn_m_qUq3)
+{
+
+
+
+}
+
+
 int main()
 {
 /*
@@ -187,12 +313,16 @@ int main()
 	double *xx1,*xx2;
 	xx1 = (double*)calloc(nx1*nx2,sizeof(double));
 	xx2 = (double*)calloc(nx1*nx2,sizeof(double));
+/*
 	for(int i=0;i<nx1;i++)
 		for(int l=0;l<nx2;l++)
 		{
 			xx1[nx2*i + l] = 0;
 			xx2[nx2*i + l] = 0;
 		}
+*/
+	init(xx1,nx1*nx2);
+	init(xx2,nx1*nx2);
 
 	for(int i=0;i<nx1;i++)
 		for(int l=0;l<nx2;l++)
@@ -228,7 +358,7 @@ int main()
 	pp2 = (double*)calloc(nx1*nx2,sizeof(double));
 	betap1 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
 	betap2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
-
+/*
 	for(int i=0;i<nx1;i++)
 		for(int l=0;l<nx2;l++)
 		{
@@ -240,6 +370,13 @@ int main()
 			betap1[k] = 0;
 			betap2[k] = 0;
 		}
+*/
+	init(pp1,nx1*nx2);
+	init(pp2,nx1*nx2);
+	init(alpha1p,nx1*nx2);
+	init(alpha2p,nx1*nx2);
+	init(betap1,nx1*nx2);
+	init(betap2,nx1*nx2);
 
 	dg_3d_scatter_pre(nx1,nx2,d1,d2,alpha1,alpha2,alpha1p,alpha2p,pp1,pp2);
 	dg_3d_scatter(nx1,nx2,alpha1,alpha2,beta1,alpha1p,alpha2p,betap1);
@@ -255,6 +392,7 @@ int main()
 	fx1 = (complex<double> *)calloc(nx1*nx2,sizeof(complex<double>));
 	fx2hat = (complex<double> *)calloc(nx1*nx2,sizeof(complex<double>));
 	fx2 = (complex<double> *)calloc(nx1*nx2,sizeof(complex<double>));
+/*
 	for(int i=0;i<nx1;i++)
 		for(int j=0;j<nx2;j++)
 		{
@@ -266,6 +404,14 @@ int main()
 			fx2hat[k] = 0.0;		
 			fx2[k] = 0.0;		
 		}
+*/
+
+	init(f,nx1*nx2);
+	init(fx1,nx1*nx2);
+	init(fx1hat,nx1*nx2);
+	init(fx2,nx1*nx2);
+	init(fx2hat,nx1*nx2);
+/*	
 	for(int i=0;i<max(2,N+1);i++)
 		for(int j=0;j<nx1;j++)
 			for(int l=0;l<nx2;l++)
@@ -273,6 +419,9 @@ int main()
 				int k = i*nx1*nx2 + j*nx2 + l;
 				fpn[k] = 0.0;
 			}
+*/
+	init(fpn,max(2,N+1)*nx1*nx2);
+
 	fhatsetup3d(nx1,nx2,fhat);
 	ifft2(fhat,nx1,nx2,f);
 	for(int i=0;i<nx1;i++)
@@ -301,40 +450,183 @@ int main()
 	init(a1,3*nx1*nx2);
 	init(a2,3*nx1*nx2);
 	init(a3,3*nx1*nx2);
-	
+	for(int i=0;i<nx1;i++)
+		for(int j=0;j<nx2;j++)
+		{
+			int ind=i*9*nx2 + j*9;
+			int ind1 = i*nx2 + j;
+			N_inv[ind + 0] = alpha1p[ind1];	
+			N_inv[ind + 1] = -betap2[ind1];	
+			N_inv[ind + 2] = 0;	
+			N_inv[ind + 3] = alpha2p[ind1];	
+			N_inv[ind + 4] = 0;	
+			N_inv[ind + 5] = -betap2[ind1];	
+			N_inv[ind + 6] = betap1[ind1];	
+			N_inv[ind + 7] = alpha1p[ind1];	
+			N_inv[ind + 8] = alpha2p[ind1];	
+			complex<double> *tmp[3];
+			for(int i1 = 0;i1<3;i1++)
+			{
+				tmp[i1] = (complex<double>*)calloc(3,sizeof(complex<double>));
+				for(int j1=0;j1<3;j1++)
+				{
+					int ind2 = i1*3 + j1;
+					tmp[i1][j1] = N_inv[ind + ind2];
+				}
+			}
+			
+			complex<double> tmp1[3]; // store (1 0 0)
+			complex<double> tmp2[3]; // store (0 1 0)
+			complex<double> tmp3[3]; // store (0 0 1)
+			init(tmp1,3); tmp1[0] = 1;
+			init(tmp2,3); tmp2[1] = 1;
+			init(tmp3,3); tmp3[2] = 1;
+			int ind3 = i*3*nx2 + j*3;
+			complexGaussElimination(tmp,tmp1,&a1[ind3],3);
+			complexGaussElimination(tmp,tmp2,&a2[ind3],3);
+			complexGaussElimination(tmp,tmp3,&a3[ind3],3);
+			/*
+			if(i==0&&j==0)
+			{
+				cout<<tmp1[0]<<" "<<tmp2[1]<<" "<<tmp3[2]<<endl;
+				for(int i1=0;i1<3;i1++) 
+					for(int j1=0;j1<3;j1++)
+						cout<<tmp[i1][j1]<<" ";
+				cout<<endl;
+				for(int i1=0;i1<3;i1++)
+					cout<<a1[ind3 + i1]<<" ";
+				cout<<endl;
+				
+			}
+			*/
 
-	ofstream o1("fpn.dat");
-	for(int l=0;l<max(2,N+1);l++)	
+		}
+
+	// check point 3, finished checking: 2013/5/17
+	
+// Now let's set up dirichlet boundary condition
+	complex<double> A,gbar;
+	A = gbar = 0;
+
+	complex<double> *Un1,*Un2,*Un3,*temp,*temp2;
+	Un1 = (complex<double>*)calloc(9*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
+	Un2 = (complex<double>*)calloc(9*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
+	Un3 = (complex<double>*)calloc(9*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
+//	gbar = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+//	A = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	temp = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	temp2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	init(Un1,9*(N+1)*nx1*nx2*nx1*nx2);	
+	init(Un2,9*(N+1)*nx1*nx2*nx1*nx2);	
+	init(Un3,9*(N+1)*nx1*nx2*nx1*nx2);	
+//	init(gbar,nx1*nx2);
+//	init(A,nx1*nx2);
+	init(temp,nx1*nx2);
+	init(temp2,nx1*nx2);
+
+	for(int n=0;n<=N;n++)
+// (1 0 0) decompose to k^(1), f^(2), e^(2)
+// first dimension of k^(1), f^(2) and e^(2)
+// as to Un, first 3 stands for 3 types of wave p, s_1, s_2
+// second 3 stands for 3 component of a wave: (1 0 0) (0 1 0) (0 0 1)
 	{
+		for(int m=0;m<nx1;m++)
+			for(int k=0;k<nx2;k++)
+			{
+				complex<double> *base_hat;
+				base_hat = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				init(base_hat,nx1*nx2);
+				int ind = m*nx2 + k;
+				base_hat[ind] = 1;
+				complex<double> egbar = exp(one*betap1[ind]*gbar);
+				complex<double> egbar1 = exp(one*betap2[ind]*gbar);
+				// here we calculate temp and temp2, which indicates the 
+           		// n-th order taylor  
+           		// expansion of exp(1i*betap*g)  
+				A = pow(one*betap1[ind],n)*egbar;
+				mult(nx1,nx2,A,&fpn[n*nx1*nx2],temp);
+/*				for(int m1=0;m1<nx1;m1++)
+					for(int k1=0;k1<nx2;k1++)
+					{
+						int ind = m1*nx2 + k1;
+						temp[ind] = A + fpn[n*nx1*nx2 + ind];
+					}
+*/
+				A = pow(one*betap2[ind],n)*egbar1;
+				mult(nx1,nx2,A,&fpn[n*nx1*nx2],temp2);
+/*
+				for(int m1=0;m1<nx1;m1++)
+					for(int k1=0;k1<nx2;k1++)
+					{
+						int ind = m1*nx2 + k1;
+						temp[ind] = A + fpn[n*nx1*nx2 + ind];
+					}
+*/
+			
+				for(int i=0;i<3;i++)
+					for(int j=0;j<3;j++)
+					{
+						int ind = nx1*nx2*(m*nx2*(N+1)*9 + k*(N+1)*9 + n*9 + i*3 + j);
+						int ind1 = 3*(m*nx2 + k) + i;
+						int ind2 = 9*(m*nx2 + k) + j*3 + i;
+						if(i == 0)
+						{
+							mult(nx1,nx2,a1[ind1]*N_inv[ind2],temp,&Un1[ind]);	
+							newconv3d(nx1,nx2,base_hat,&Un1[ind],&Un1[ind]);	
+
+							mult(nx1,nx2,a2[ind1]*N_inv[ind2],temp,&Un2[ind]);	
+							newconv3d(nx1,nx2,base_hat,&Un2[ind],&Un2[ind]);	
+
+							mult(nx1,nx2,a3[ind1]*N_inv[ind2],temp,&Un3[ind]);	
+							newconv3d(nx1,nx2,base_hat,&Un3[ind],&Un3[ind]);	
+						}
+						else
+						{
+							mult(nx1,nx2,a1[ind1]*N_inv[ind2],temp2,&Un1[ind]);	
+							newconv3d(nx1,nx2,base_hat,&Un1[ind],&Un1[ind]);	
+							mult(nx1,nx2,a2[ind1]*N_inv[ind2],temp2,&Un2[ind]);	
+							newconv3d(nx1,nx2,base_hat,&Un2[ind],&Un2[ind]);	
+							mult(nx1,nx2,a3[ind1]*N_inv[ind2],temp2,&Un3[ind]);	
+							newconv3d(nx1,nx2,base_hat,&Un3[ind],&Un3[ind]);	
+						}
+
+					}	
+				delete base_hat;
+			}
+
+	}
+// check point 4, finished checking
+
+// Now here comes the main function
+// First just do the 0-th order perturbation
+	complex<double> *Gn_m_qUq1,*Gn_m_qUq2, *Gn_m_qUq3;
+	Gn_m_qUq1 = (complex<double>*)calloc(3*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
+	Gn_m_qUq2 = (complex<double>*)calloc(3*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
+	Gn_m_qUq3 = (complex<double>*)calloc(3*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
+	solve_DNSO(nx1,nx2,N,fpn,alpha1p,alpha2p,betap1,betap2,Un1,Un2,Un3,lambda,mu,Gn_m_qUq1,Gn_m_qUq2,Gn_m_qUq3);
+
+	ofstream o1("Un1.dat");
+	int ind = nx1*nx2*(2*nx2*(N+1)*9 + 3*(N+1)*9 + 1*9 + 1*3 + 2);
 	for(int i=0;i<nx1;i++)
 	{
 		for(int j=0;j<nx2;j++)
 		{ 
-			int k=l*nx1*nx2 + i*nx2 + j;
-			o1<<setprecision(20)<<fpn[k]<<" ";
+			
+			int k=i*nx2 + j;
+			//k = 3*k;
+			//for(int l=0;l<3;l++)
+			o1<<setprecision(20)<<Un3[k+ind]<<" ";
 		}
 		o1<<endl;
 	}
-	o1<<endl;
-	}
-
-
 
 
 	o1.close();	 
-	delete pp1;
-	delete pp2;
-	delete alpha1p;
-	delete alpha2p;
-	delete betap1;
-	delete betap2;
+	delete pp1,pp2,alpha1p,alpha2p,betap1,betap2;
+	delete fx1,fx2,fhat,fx2hat,fx1hat,fpn;
+	delete N_inv, N_orig, a1,a2,a3;
+	delete Un1, Un2, Un3, temp, temp2;
 
-	delete fhat;
-	delete fx1;
-	delete fx2;
-	delete fx2hat;
-	delete fx1hat;
-	delete fpn;
 	return 0;
 
 }
