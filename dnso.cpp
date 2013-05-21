@@ -12,9 +12,9 @@ this is the c++ code for the DNO in Navier's equation.
 using namespace std;
 complex<double> one(0,1);
 
-void mult(int nx,int ny,complex<double> a, complex<double> *x, complex<double> *y)
+void mult(int nx,complex<double> a, complex<double> *x, complex<double> *y)
 {
-	for(int i=0;i<nx*ny;i++)
+	for(int i=0;i<nx;i++)
 		y[i] = a*x[i];
 }
 
@@ -282,11 +282,162 @@ void complexGaussElimination(complex<double> *A[],
   complexBackSubstitution(C,d,x,M);
 
 }  
+			
+void stress_0( complex<double>* Un, double alpha1p, double alpha2p, complex<double> betap1,complex<double> betap2, double lambda, double mu, int nx1, int nx2, complex<double>* right)
+{
+	complex<double> *wave,*p_wave,*s_wave;
+	wave = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	p_wave = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	s_wave = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	init(wave,3*nx1*nx2);
+	init(p_wave,3*nx1*nx2);
+	init(s_wave,3*nx1*nx2);
 
-void solve_DNSO(int nx1,int nx2,int N,complex<double>* fpn,double* alpha1p,double* alpha2p,complex<double>* betap1,complex<double>* betap2,complex<double>* Un1,complex<double>* Un2,complex<double>* Un3,double lambda,double mu,complex<double>* Gn_m_qUq1,complex<double>* Gn_m_qUq2,complex<double>* Gn_m_qUq3)
+	mult(3*nx1*nx2,1,Un,p_wave);
+	mult(3*nx1*nx2,1,&Un[3*nx1*nx2],s_wave);
+	mult(3*nx1*nx2,1,&Un[6*nx1*nx2],wave);
+	for(int i=0;i<nx1*nx2*3;i++)
+	{
+		s_wave[i] += wave[i];
+		wave[i] = p_wave[i] + s_wave[i];
+	}
+
+	// useful patterns, which are all in F-S
+	complex<double> *DIV,*par_1_3,*par_2_3,*par_3_3;
+	DIV = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	par_1_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	par_2_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	par_3_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	init(DIV,nx1*nx2);
+	init(par_1_3,nx1*nx2);
+	init(par_2_3,nx1*nx2);
+	init(par_3_3,nx1*nx2);
+	
+	for(int i=0;i<nx1;i++)
+		for(int j=0;j<nx2;j++)
+		{
+			int k = i*nx2 + j;
+			int ind2 = nx1*nx2;
+			int ind3 = 2*nx1*nx2;
+
+			DIV[k] = one*(alpha1p*p_wave[k] + alpha2p*p_wave[ind2 + k] + betap1*p_wave[ind3 + k]);
+
+			par_1_3[k] = one*(alpha1p*wave[ind3 + k] + betap1*p_wave[k] + betap2*s_wave[k]);
+			par_2_3[k] = one*(alpha2p*wave[ind3 + k] + betap1*p_wave[ind2 + k] + betap2*s_wave[ind2 + k]);
+			par_3_3[k] = one*(betap1*p_wave[ind3 + k] + betap2*s_wave[ind3 + k]);
+
+		}	
+		
+	int ind2 = nx1*nx2;
+	mult(nx1*nx2,-mu,par_1_3,right);
+	mult(nx1*nx2,-mu,par_2_3,&right[ind2]);
+	for(int i=0;i<nx1;i++)
+		for(int j=0;j<nx2;j++)
+		{
+			int k = i*nx2 + j;
+			int ind = 2*nx1*nx2;
+			right[ind + k] = -lambda*DIV[k] - 2*mu*par_3_3[k];
+
+		}	
+
+} 
+	
+void g0_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,complex<double>* Un3,complex<double>* fpn,double* alpha1p,double* alpha2p,complex<double>* betap1,complex<double>* betap2,double lambda,double mu,complex<double>* G0_I_J1,complex<double>* G0_I_J2,complex<double>* G0_I_J3) 
+{
+
+	for(int i=0;i<nx1;i++)
+		for(int j=0;j<nx2;j++)
+		{
+			complex<double> *right1,*right2,*right3;
+			right1 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+			right3 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+			right2 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+			init(right1,3*nx1*nx2);
+			init(right2,3*nx1*nx2);
+			init(right3,3*nx1*nx2);
+
+			int ind = nx1*nx2*(i*nx2*9 + j*9);
+			int ind1 = i*nx2 + j;
+
+			stress_0( &Un1[ind], alpha1p[ind1],alpha2p[ind1],betap1[ind1],betap2[ind1],lambda,mu,nx1,nx2, right1); 
+			stress_0( &Un2[ind], alpha1p[ind1],alpha2p[ind1],betap1[ind1],betap2[ind1],lambda,mu,nx1,nx2, right2); 
+			stress_0( &Un3[ind], alpha1p[ind1],alpha2p[ind1],betap1[ind1],betap2[ind1],lambda,mu,nx1,nx2, right3); 
+
+			int ind2 = nx1*nx2*(i*nx2*3 + j*3);
+			mult(3*nx1*nx2,1,right1,&G0_I_J1[ind2]);
+			mult(3*nx1*nx2,1,right2,&G0_I_J2[ind2]);
+			mult(3*nx1*nx2,1,right3,&G0_I_J3[ind2]);
+
+			delete right1,right2,right3;
+		}	
+
+}
+
+void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,complex<double>* Un3,complex<double>* fpn,double* alpha1p,double* alpha2p,complex<double>* betap1,complex<double>* betap2,double lambda,double mu,complex<double>* Gn_m_mUm1,complex<double>* Gn_m_mUm2,complex<double>* Gn_m_mUm3) 
 {
 
 
+}
+
+
+
+void solve_DNSO(int nx1,int nx2,int N,complex<double>* fpn,double* alpha1p,double* alpha2p,complex<double>* betap1,complex<double>* betap2,complex<double>* Un1,complex<double>* Un2,complex<double>* Un3,double lambda,double mu,complex<double>* Gn_m_mUm1,complex<double>* Gn_m_mUm2,complex<double>* Gn_m_mUm3)
+{
+
+/*
+% solve_DNSO - Computes the Fourier coefficients
+%     of the n-th Taylor term of the field in the upper domain
+%     at the interface, U_n
+%
+% Inputs:
+%
+% . nx1 - Number of equally spaced gridpoints in x1
+% . nx2 - Number of equally spaced gridpoints in x2
+% . N - Number of perturbation orders
+% . fpn - Fourier coefficients of f^n/n!
+% . alpha1p - quasiwavenumbers: \alpha_1 + (2 \pi/d_1) p
+% . alpha2p - quasiwavenumbers: \alpha_2 + (2 \pi/d_2) p
+% . betap - \beta_p = \sqrt{ k^2 - \alpha_p^2 }
+% . zetahat_n1 - Fourier coefficients of n-th Taylor term of
+%    Dirichlet data
+%
+% Output:
+%
+% . Un - Fourier coefficients of U_n
+% . Gn_m_mUm - Fourier coefficients of G_{n-m}[V_m]
+%
+% Note: Fourier coefficients of f^n/n! stored in fpn(:,n+1)
+% Note: Fourier coefficients of U_n = (V_l)_n stored in Vln(:,n+1)
+% Note: Fourier coefficients of G_{n-m}[U_m] stored in Gn_m_mUm(:,n-m+1,m+1)
+*/
+	complex<double> alpha1,alpha2,beta1,beta2,k1,k2;
+	alpha1 = alpha1p[0];
+	alpha2 = alpha2p[0];
+	beta1 = betap1[0];
+	beta2 = betap2[0];
+	k1 = sqrt(pow(alpha1,2) + pow(alpha2,2) + pow(beta1,2));	
+	k2 = sqrt(pow(alpha1,2) + pow(alpha2,2) + pow(beta2,2));	
+
+/*
+% Gn_m_mUm = G_{n-m}[U_m]
+% Gn_m_mUm1.2.3 contains all orders of fourier expansion coefficients of G
+% operator acting on all different wave numbers and different dimensions,
+% here 3 would stands for different dimension in result, which is the
+% result after the operation.
+*/
+	for(int n=0;n<N+1;n++)
+	{
+		if(n == 0)
+			g0_engine(n,nx1,nx2,Un1,Un2,Un3,fpn,alpha1p,alpha2p,betap1,betap2,lambda,mu,Gn_m_mUm1,Gn_m_mUm2,Gn_m_mUm3); 
+
+		else
+			gn_engine(n,nx1,nx2,Un1,Un2,Un3,fpn,alpha1p,alpha2p,betap1,betap2,lambda,mu,Gn_m_mUm1,Gn_m_mUm2,Gn_m_mUm3); 
+
+
+
+
+
+	}
 
 }
 
@@ -300,7 +451,7 @@ int main()
 */
 	int N,nx1,nx2;
 	double epsilon,d1,d2,dx1,dx2;
-	N = 2;
+	N = 0;
 	nx1 = 8;
 	nx2 = 8;
 	epsilon =1e-6;
@@ -544,7 +695,7 @@ int main()
            		// n-th order taylor  
            		// expansion of exp(1i*betap*g)  
 				A = pow(one*betap1[ind],n)*egbar;
-				mult(nx1,nx2,A,&fpn[n*nx1*nx2],temp);
+				mult(nx1*nx2,A,&fpn[n*nx1*nx2],temp);
 /*				for(int m1=0;m1<nx1;m1++)
 					for(int k1=0;k1<nx2;k1++)
 					{
@@ -553,7 +704,7 @@ int main()
 					}
 */
 				A = pow(one*betap2[ind],n)*egbar1;
-				mult(nx1,nx2,A,&fpn[n*nx1*nx2],temp2);
+				mult(nx1*nx2,A,&fpn[n*nx1*nx2],temp2);
 /*
 				for(int m1=0;m1<nx1;m1++)
 					for(int k1=0;k1<nx2;k1++)
@@ -566,27 +717,33 @@ int main()
 				for(int i=0;i<3;i++)
 					for(int j=0;j<3;j++)
 					{
-						int ind = nx1*nx2*(m*nx2*(N+1)*9 + k*(N+1)*9 + n*9 + i*3 + j);
+//rule of indexing:
+//(1)the slowest changing dimension is the perturbation order, eg dimension 3 in the matlab matrix, 
+//(2) the last two dimension in the matrix should follow one by one then,eg dim 6 and 7.
+//(3) then wave type, eg dim 4 
+//(4) then the wave dimension, eg dim 5.
+//(5) lastly the first two dimension of the matrix. 
+						int ind = nx1*nx2*(n*9*nx1*nx2 + m*nx2*9 + k*9 + i*3 + j);
 						int ind1 = 3*(m*nx2 + k) + i;
 						int ind2 = 9*(m*nx2 + k) + j*3 + i;
 						if(i == 0)
 						{
-							mult(nx1,nx2,a1[ind1]*N_inv[ind2],temp,&Un1[ind]);	
+							mult(nx1*nx2,a1[ind1]*N_inv[ind2],temp,&Un1[ind]);	
 							newconv3d(nx1,nx2,base_hat,&Un1[ind],&Un1[ind]);	
 
-							mult(nx1,nx2,a2[ind1]*N_inv[ind2],temp,&Un2[ind]);	
+							mult(nx1*nx2,a2[ind1]*N_inv[ind2],temp,&Un2[ind]);	
 							newconv3d(nx1,nx2,base_hat,&Un2[ind],&Un2[ind]);	
 
-							mult(nx1,nx2,a3[ind1]*N_inv[ind2],temp,&Un3[ind]);	
+							mult(nx1*nx2,a3[ind1]*N_inv[ind2],temp,&Un3[ind]);	
 							newconv3d(nx1,nx2,base_hat,&Un3[ind],&Un3[ind]);	
 						}
 						else
 						{
-							mult(nx1,nx2,a1[ind1]*N_inv[ind2],temp2,&Un1[ind]);	
+							mult(nx1*nx2,a1[ind1]*N_inv[ind2],temp2,&Un1[ind]);	
 							newconv3d(nx1,nx2,base_hat,&Un1[ind],&Un1[ind]);	
-							mult(nx1,nx2,a2[ind1]*N_inv[ind2],temp2,&Un2[ind]);	
+							mult(nx1*nx2,a2[ind1]*N_inv[ind2],temp2,&Un2[ind]);	
 							newconv3d(nx1,nx2,base_hat,&Un2[ind],&Un2[ind]);	
-							mult(nx1,nx2,a3[ind1]*N_inv[ind2],temp2,&Un3[ind]);	
+							mult(nx1*nx2,a3[ind1]*N_inv[ind2],temp2,&Un3[ind]);	
 							newconv3d(nx1,nx2,base_hat,&Un3[ind],&Un3[ind]);	
 						}
 
@@ -605,8 +762,8 @@ int main()
 	Gn_m_qUq3 = (complex<double>*)calloc(3*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
 	solve_DNSO(nx1,nx2,N,fpn,alpha1p,alpha2p,betap1,betap2,Un1,Un2,Un3,lambda,mu,Gn_m_qUq1,Gn_m_qUq2,Gn_m_qUq3);
 
-	ofstream o1("Un1.dat");
-	int ind = nx1*nx2*(2*nx2*(N+1)*9 + 3*(N+1)*9 + 1*9 + 1*3 + 2);
+	ofstream o1("Gn1.dat");
+	int ind = nx1*nx2*(1*nx2*3 + 3*3 + 2);
 	for(int i=0;i<nx1;i++)
 	{
 		for(int j=0;j<nx2;j++)
@@ -615,7 +772,7 @@ int main()
 			int k=i*nx2 + j;
 			//k = 3*k;
 			//for(int l=0;l<3;l++)
-			o1<<setprecision(20)<<Un3[k+ind]<<" ";
+			o1<<setprecision(20)<<Gn_m_qUq3[k+ind]<<" ";
 		}
 		o1<<endl;
 	}
@@ -626,6 +783,8 @@ int main()
 	delete fx1,fx2,fhat,fx2hat,fx1hat,fpn;
 	delete N_inv, N_orig, a1,a2,a3;
 	delete Un1, Un2, Un3, temp, temp2;
+	delete Gn_m_qUq1,Gn_m_qUq2,Gn_m_qUq3;
+
 
 	return 0;
 
