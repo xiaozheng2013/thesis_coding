@@ -18,6 +18,12 @@ void mult(int nx,complex<double> a, complex<double> *x, complex<double> *y)
 		y[i] = a*x[i];
 }
 
+void mult(int nx,double* a, complex<double> *x, complex<double> *y)
+{
+	for(int i=0;i<nx;i++)
+		y[i] = a[i]*x[i];
+}
+
 double radius ( complex<double> c )
 // Returns the radius of the complex number.
 {
@@ -373,9 +379,131 @@ void g0_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,c
 
 }
 
+void stress_pre(int nx1,int nx2,complex<double>* Un,double alpha1p,double alpha2p,complex<double> betap1,complex<double> betap2,complex<double>* p_wave,complex<double>* s_wave,complex<double>* wave,complex<double>* div,complex<double>* par12,complex<double>* par13,complex<double>* par23,complex<double>* par33)
+{
+/*
+% this code did all the preparation work for calculation of DNO at each
+% order, get p-wave,s-wave, and many useful patterns before reall
+% calculation.
+*/
+	int ind2 = 3*nx1*nx2,ind3 = 6*nx1*nx2;
+	mult(3*nx1*nx2,1,Un,p_wave);
+	mult(3*nx1*nx2,1,&Un[ind2],s_wave);
+	mult(3*nx1*nx2,1,&Un[ind3],wave);
+	for(int i=0;i<3*nx2*nx1;i++)
+	{
+		s_wave[i] += wave[i];
+		wave[i] = p_wave[i] + s_wave[i];
+	}
+
+	
+	
+
+}
+
+void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alpha2p,complex<double> betap1,complex<double> betap2,double lambda,double mu,int nx1,int nx2,complex<double> *fx,complex<double> *fy,complex<double> *right)
+{
+/*
+% This function calculates the n-th order perturbation FC of the stress,
+% which is on the right hand side of DNO recursive formula
+*/
+	complex<double> *p_wave_1,*s_wave_1,*wave_1;
+	complex<double> *p_wave_2,*s_wave_2,*wave_2;
+	p_wave_1 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	s_wave_1 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	wave_1 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	p_wave_2 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	s_wave_2 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	wave_2 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+
+	init(p_wave_1,3*nx1*nx2);		
+	init(s_wave_1,3*nx1*nx2);		
+	init(wave_1,3*nx1*nx2);		
+	init(p_wave_2,3*nx1*nx2);		
+	init(s_wave_2,3*nx1*nx2);		
+	init(wave_2,3*nx1*nx2);		
+
+	complex<double> *DIV_1,*par_1_2,*par_1_3,*par_2_3,*par_3_3;
+	DIV_1 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	par_1_2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	par_1_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	par_2_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	par_3_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	init(DIV_1,nx1*nx2);		
+	init(par_1_2,nx1*nx2);		
+	init(par_1_3,nx1*nx2);		
+	init(par_2_3,nx1*nx2);		
+	init(par_3_3,nx1*nx2);		
+
+	complex<double> *DIV_2,*Par_1_2,*Par_1_3,*Par_2_3,*Par_3_3;
+	DIV_2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	Par_1_2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	Par_1_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	Par_2_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	Par_3_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	init(DIV_2,nx1*nx2);		
+	init(Par_1_2,nx1*nx2);		
+	init(Par_1_3,nx1*nx2);		
+	init(Par_2_3,nx1*nx2);		
+	init(Par_3_3,nx1*nx2);		
+
+
+	stress_pre(nx1,nx2,u1,alpha1p,alpha2p,betap1,betap2,p_wave_1,s_wave_1,wave_1,DIV_1,par_1_2,par_1_3,par_2_3,par_3_3);
+		
+
+	delete p_wave_1,s_wave_1,wave_1;
+	delete p_wave_2,s_wave_2,wave_2;
+	delete DIV_1,par_1_2,par_1_3,par_2_3,par_3_3;
+	delete DIV_2,Par_1_2,Par_1_3,Par_2_3,Par_3_3;
+}
+
 void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,complex<double>* Un3,complex<double>* fpn,double* alpha1p,double* alpha2p,complex<double>* betap1,complex<double>* betap2,double lambda,double mu,complex<double>* Gn_m_mUm1,complex<double>* Gn_m_mUm2,complex<double>* Gn_m_mUm3) 
 {
+/*	% 
+% this function will solve all the G_n[U(i,j)]
+% 
+% Inputs:
+% . n - the order of DNSO
+% . Un - Fourier coefficients of Dirichlet data of previous n orders
+% . fpn - Fourier coefficients of f^n/n!
+% . alphap - quasiwavenumbers: \alpha + (2 \pi/d) p
+% . betap - \beta_p = \sqrt{ k^2 - \alpha_p^2 }
+% . Gn_prev - the previous solved and stored G_n data
+*/
+	complex<double> *fx,*fy;
+	fx = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	fy = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	init(fx,nx1*nx2);
+	init(fy,nx1*nx2);
+	mult(nx1*nx2,alpha1p,&fpn[nx1*nx2],fx);
+	mult(nx1*nx2,one,fx,fy);
 
+	mult(nx1*nx2,alpha2p,&fpn[nx1*nx2],fy);
+	mult(nx1*nx2,one,fy,fy);
+
+	for(int i=0;i<nx1;i++)
+		for(int j=0;j<nx2;j++)
+		{
+			complex<double> *right1,*right2,*right3;
+			right1 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+			right2 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+			right3 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+			init(right1,3*nx2*nx1);
+			init(right2,3*nx2*nx1);
+			init(right3,3*nx2*nx1);
+
+			int ind = i*nx2 + j;	
+			int ind1 = nx1*nx2*((n-1)*nx1*nx2*9 + i*nx2*9 + j*9);
+			int ind2 = nx1*nx2*(n*nx1*nx2*9 + i*nx2*9 + j*9);
+
+			stress_n(&Un1[ind1],&Un1[ind2],alpha1p[ind],alpha2p[ind],betap1[ind],betap2[ind],lambda,mu,nx1,nx2,fx,fy,right1);
+
+
+
+			delete right1,right2,right3;
+		}
+
+	delete fx,fy;
 
 }
 
