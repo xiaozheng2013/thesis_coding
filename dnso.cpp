@@ -396,8 +396,20 @@ void stress_pre(int nx1,int nx2,complex<double>* Un,double alpha1p,double alpha2
 		wave[i] = p_wave[i] + s_wave[i];
 	}
 
-	
-	
+	ind2 = nx1*nx2;
+	ind3 = 2*nx2*nx1;
+	for(int i=0;i<nx1*nx2;i++)	
+	{
+		
+		div[i] = one*alpha1p*p_wave[i] + one*alpha2p*p_wave[ind2 + i] 
+				+ one*betap1*p_wave[ind2 + i];
+		par12[i] = one*(alpha1p*wave[ind2 + i] + alpha2p*wave[i]);
+		par13[i] = one*(alpha1p*wave[ind3 + i] + betap1*p_wave[i] 
+					+ betap2*s_wave[i]);
+		par23[i] = one*(alpha2p*wave[ind3 + i] + betap1*p_wave[ind2 + i]
+					+ betap2*s_wave[ind2 + i]);
+		par33[i] = one*(betap1*p_wave[ind3 + i] + betap2*s_wave[ind3 + i]);
+	}
 
 }
 
@@ -447,14 +459,76 @@ void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alph
 	init(Par_2_3,nx1*nx2);		
 	init(Par_3_3,nx1*nx2);		
 
-
 	stress_pre(nx1,nx2,u1,alpha1p,alpha2p,betap1,betap2,p_wave_1,s_wave_1,wave_1,DIV_1,par_1_2,par_1_3,par_2_3,par_3_3);
+	stress_pre(nx1,nx2,u2,alpha1p,alpha2p,betap1,betap2,p_wave_2,s_wave_2,wave_2,DIV_2,Par_1_2,Par_1_3,Par_2_3,Par_3_3);
 		
+	complex<double> *tmp1,*tmp2,*tmp3;
+	tmp1 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	tmp2 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	tmp3 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	init(tmp1,nx1*nx2*3);
+	init(tmp2,nx1*nx2*3);
+	init(tmp3,nx1*nx2*3);
+
+// now calculate the first dimension
+	mult(nx1*nx2,lambda,DIV_1,tmp1);
+	mult(nx1*nx2,2*mu*one*alpha1p,wave_1,tmp2);
+	for(int i=0;i<nx1*nx2;i++)
+	{
+		tmp1[i] += tmp2[i];
+	}
+	
+	mult(nx1*nx2,mu,par_1_2,tmp2);
+	mult(nx1*nx2,mu,Par_1_2,tmp3);
+
+	newconv3d(nx1,nx2,tmp1,fx,tmp1);
+	newconv3d(nx1,nx2,tmp2,fy,tmp2);
+	for(int i=0;i<nx1*nx2;i++)
+	{
+		right[i] = tmp1[i] + tmp2[i] - tmp3[i];
+	} 
+
+// now calculate the second dimension
+	int ind2 = nx1*nx2;
+	mult(nx1*nx2,mu,par_1_2,&tmp1[ind2]);
+	mult(nx1*nx2,lambda,DIV_1,&tmp2[ind2]);
+	mult(nx1*nx2,2*mu*one*alpha2p,&wave_1[ind2],&tmp3[ind2]);
+	for(int i=0;i<nx1*nx2;i++)
+	{
+		tmp2[ind2 + i] += tmp3[ind2 + i];
+	}
+	mult(nx1*nx2,mu,Par_2_3,&tmp3[ind2]);
+
+	newconv3d(nx1,nx2,&tmp1[ind2],fx,&tmp1[ind2]);
+	newconv3d(nx1,nx2,&tmp2[ind2],fy,&tmp2[ind2]);
+	for(int i=ind2;i<ind2 + nx1*nx2;i++)
+	{
+		right[i] = tmp1[i] + tmp2[i] - tmp3[i];
+	} 
+// now calculate the 3rd dimension
+	int ind3 = 2*nx2*nx1;
+	mult(nx1*nx2,mu,par_1_3,&tmp1[ind3]);
+	mult(nx1*nx2,lambda,DIV_2,&tmp2[ind3]);
+	mult(nx1*nx2,2*mu,Par_3_3,&tmp3[ind3]);
+	for(int i=ind3;i<ind3 + nx1*nx2;i++)
+	{
+		tmp3[i] += tmp2[i];
+	}
+	mult(nx1*nx2,mu,par_2_3,&tmp2[ind3]);
+	
+	newconv3d(nx1,nx2,&tmp1[ind3],fx,&tmp1[ind3]);
+	newconv3d(nx1,nx2,&tmp2[ind3],fy,&tmp2[ind3]);
+	for(int i=ind3;i<ind3 + nx1*nx2;i++)
+	{
+		right[i] = tmp1[i] + tmp2[i] - tmp3[i];
+	} 
 
 	delete p_wave_1,s_wave_1,wave_1;
 	delete p_wave_2,s_wave_2,wave_2;
 	delete DIV_1,par_1_2,par_1_3,par_2_3,par_3_3;
 	delete DIV_2,Par_1_2,Par_1_3,Par_2_3,Par_3_3;
+	delete tmp1,tmp2,tmp3;
+
 }
 
 void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,complex<double>* Un3,complex<double>* fpn,double* alpha1p,double* alpha2p,complex<double>* betap1,complex<double>* betap2,double lambda,double mu,complex<double>* Gn_m_mUm1,complex<double>* Gn_m_mUm2,complex<double>* Gn_m_mUm3) 
@@ -497,10 +571,25 @@ void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,c
 			int ind2 = nx1*nx2*(n*nx1*nx2*9 + i*nx2*9 + j*9);
 
 			stress_n(&Un1[ind1],&Un1[ind2],alpha1p[ind],alpha2p[ind],betap1[ind],betap2[ind],lambda,mu,nx1,nx2,fx,fy,right1);
+			stress_n(&Un2[ind1],&Un2[ind2],alpha1p[ind],alpha2p[ind],betap1[ind],betap2[ind],lambda,mu,nx1,nx2,fx,fy,right2);
+			stress_n(&Un3[ind1],&Un3[ind2],alpha1p[ind],alpha2p[ind],betap1[ind],betap2[ind],lambda,mu,nx1,nx2,fx,fy,right3);
+
+			complex<double> *temp111,*temp211,*temp311;
+			temp111 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+			temp211 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+			temp311 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+			init(temp111,3*nx2*nx1);
+			init(temp211,3*nx2*nx1);
+			init(temp311,3*nx2*nx1);
+	
+
 
 
 
 			delete right1,right2,right3;
+			delete temp111,temp211,temp311;
+
+
 		}
 
 	delete fx,fy;
@@ -579,7 +668,7 @@ int main()
 */
 	int N,nx1,nx2;
 	double epsilon,d1,d2,dx1,dx2;
-	N = 0;
+	N = 2;
 	nx1 = 8;
 	nx2 = 8;
 	epsilon =1e-6;
