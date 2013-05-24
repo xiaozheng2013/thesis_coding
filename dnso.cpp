@@ -402,7 +402,7 @@ void stress_pre(int nx1,int nx2,complex<double>* Un,double alpha1p,double alpha2
 	{
 		
 		div[i] = one*alpha1p*p_wave[i] + one*alpha2p*p_wave[ind2 + i] 
-				+ one*betap1*p_wave[ind2 + i];
+				+ one*betap1*p_wave[ind3 + i];
 		par12[i] = one*(alpha1p*wave[ind2 + i] + alpha2p*wave[i]);
 		par13[i] = one*(alpha1p*wave[ind3 + i] + betap1*p_wave[i] 
 					+ betap2*s_wave[i]);
@@ -413,12 +413,20 @@ void stress_pre(int nx1,int nx2,complex<double>* Un,double alpha1p,double alpha2
 
 }
 
+void init1(int len, complex<double>* a)
+{
+	for(int i=0;i<len;i++)
+	a[i] = 1;
+}
+
 void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alpha2p,complex<double> betap1,complex<double> betap2,double lambda,double mu,int nx1,int nx2,complex<double> *fx,complex<double> *fy,complex<double> *right)
 {
 /*
 % This function calculates the n-th order perturbation FC of the stress,
 % which is on the right hand side of DNO recursive formula
 */
+//	ofstream d4("u1.dat");
+	
 	complex<double> *p_wave_1,*s_wave_1,*wave_1;
 	complex<double> *p_wave_2,*s_wave_2,*wave_2;
 	p_wave_1 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
@@ -460,8 +468,41 @@ void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alph
 	init(Par_3_3,nx1*nx2);		
 
 	stress_pre(nx1,nx2,u1,alpha1p,alpha2p,betap1,betap2,p_wave_1,s_wave_1,wave_1,DIV_1,par_1_2,par_1_3,par_2_3,par_3_3);
-	stress_pre(nx1,nx2,u2,alpha1p,alpha2p,betap1,betap2,p_wave_2,s_wave_2,wave_2,DIV_2,Par_1_2,Par_1_3,Par_2_3,Par_3_3);
-		
+	
+	//stress_pre(nx1,nx2,u2,alpha1p,alpha2p,betap1,betap2,p_wave_2,s_wave_2,wave_2,DIV_2,Par_1_2,Par_1_3,Par_2_3,Par_3_3);
+	ofstream d4("pw1.dat");	
+	for(int i1 = 0;i1<3;i1++)
+	{
+		for(int i2 =0;i2<nx1;i2++)
+		{
+			for(int i3=0;i3<nx2;i3++)
+			{ d4<<setprecision(20)<<wave_1[i1*nx1*nx2 + i2*nx2 + i3]<<" "; }
+			d4<<endl;
+			
+		}
+		d4<<endl;
+	}				
+	d4.close();
+
+/*
+	
+	init1(3*nx1*nx2,p_wave_1);	
+	init1(3*nx1*nx2,s_wave_1);	
+	init1(3*nx1*nx2,wave_1);	
+	init1(3*nx1*nx2,p_wave_2);	
+	init1(3*nx1*nx2,s_wave_2);	
+	init1(3*nx1*nx2,wave_2);	
+	init1(nx1*nx2,DIV_1);	
+	init1(nx1*nx2,par_1_2);	
+	init1(nx1*nx2,par_1_3);	
+	init1(nx1*nx2,par_2_3);	
+	init1(nx1*nx2,par_3_3);	
+	init1(nx1*nx2,DIV_2);	
+	init1(nx1*nx2,Par_1_2);	
+	init1(nx1*nx2,Par_1_3);	
+	init1(nx1*nx2,Par_2_3);	
+	init1(nx1*nx2,Par_3_3);	
+	*/	
 	complex<double> *tmp1,*tmp2,*tmp3;
 	tmp1 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
 	tmp2 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
@@ -479,7 +520,7 @@ void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alph
 	}
 	
 	mult(nx1*nx2,mu,par_1_2,tmp2);
-	mult(nx1*nx2,mu,Par_1_2,tmp3);
+	mult(nx1*nx2,mu,Par_1_3,tmp3);
 
 	newconv3d(nx1,nx2,tmp1,fx,tmp1);
 	newconv3d(nx1,nx2,tmp2,fy,tmp2);
@@ -531,6 +572,35 @@ void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alph
 
 }
 
+void bc_compact(int nx1,int nx2, complex<double>* Un, complex<double>* temp)
+{
+//this function would compress Un in a more compact and direct useful pattern.	
+	int ind2 = 3*nx1*nx2; 
+	int ind3 = 6*nx1*nx2; 
+	for(int i=0;i<nx1*nx2*3;i++)
+	{
+		temp[i] = Un[i] + Un[ind2 + i] + Un[ind3 + i];
+	}
+}
+
+void dno_act(int nx1,int nx2,complex<double>* tmp,complex<double>* gn1,complex<double>* gn2,complex<double>* gn3,complex<double>* u)
+{
+// % this function mainly solves the dno action on a function
+	for(int i=0;i<nx1;i++)
+		for(int j=0;j<nx2;j++)
+		{
+			int k = nx1*nx2*3*(i*nx2 + j);
+			int ind = i*nx2 + j;
+			int ind2 = nx1*nx2 + ind;
+			int ind3 = 2*nx1*nx2 + ind;
+			for(int i1 = 0;i1<nx1*nx2*3;i1++)
+			{	
+				u[i1] += tmp[ind]*gn1[k + i1] + tmp[ind2]*gn2[k + i1] 
+						+ tmp[ind3]*gn3[k + i1];
+			} 
+		}
+}
+
 void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,complex<double>* Un3,complex<double>* fpn,double* alpha1p,double* alpha2p,complex<double>* betap1,complex<double>* betap2,double lambda,double mu,complex<double>* Gn_m_mUm1,complex<double>* Gn_m_mUm2,complex<double>* Gn_m_mUm3) 
 {
 /*	% 
@@ -555,8 +625,10 @@ void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,c
 	mult(nx1*nx2,alpha2p,&fpn[nx1*nx2],fy);
 	mult(nx1*nx2,one,fy,fy);
 
-	for(int i=0;i<nx1;i++)
-		for(int j=0;j<nx2;j++)
+	//for(int i=0;i<nx1;i++)
+	//	for(int j=0;j<nx2;j++)
+	for(int i=1;i<2;i++)
+		for(int j=3;j<4;j++)
 		{
 			complex<double> *right1,*right2,*right3;
 			right1 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
@@ -573,6 +645,21 @@ void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,c
 			stress_n(&Un1[ind1],&Un1[ind2],alpha1p[ind],alpha2p[ind],betap1[ind],betap2[ind],lambda,mu,nx1,nx2,fx,fy,right1);
 			stress_n(&Un2[ind1],&Un2[ind2],alpha1p[ind],alpha2p[ind],betap1[ind],betap2[ind],lambda,mu,nx1,nx2,fx,fy,right2);
 			stress_n(&Un3[ind1],&Un3[ind2],alpha1p[ind],alpha2p[ind],betap1[ind],betap2[ind],lambda,mu,nx1,nx2,fx,fy,right3);
+			if(i == 1 && j == 3)
+			{
+				ofstream d3("right1.dat");	
+				for(int i1 = 0;i1<3;i1++)
+				{
+				for(int i2 =0;i2<nx1;i2++)
+				{
+				for(int i3=0;i3<nx2;i3++)
+				{ d3<<right1[i1*nx1*nx2 + i2*nx2 + i3]<<" "; }
+				d3<<endl;
+				}d3<<endl;}
+				d3.close();
+				
+
+			}
 
 			complex<double> *temp111,*temp211,*temp311;
 			temp111 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
@@ -582,9 +669,51 @@ void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,c
 			init(temp211,3*nx2*nx1);
 			init(temp311,3*nx2*nx1);
 	
+			for(int k=1;k<n+1;k++)
+			{
+				complex<double> *temp1,*temp2,*temp3;
+				complex<double> *temp11,*temp21,*temp31;
+				temp1 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+				temp2 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+				temp3 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+				temp11 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+				temp21 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+				temp31 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+				init(temp1,3*nx2*nx1);
+				init(temp2,3*nx2*nx1);
+				init(temp3,3*nx2*nx1);
+				init(temp11,3*nx2*nx1);
+				init(temp21,3*nx2*nx1);
+				init(temp31,3*nx2*nx1);
+//% first combine all items with in the same dimension and store
+//            % them in temp1(dim=1) tmp2,tmp3. 
+				int ind = nx1*nx2*9*(k*nx1*nx2 + i*nx2 + j);
+				bc_compact( nx1,nx2,&Un1[ind], temp1);	
+				bc_compact( nx1,nx2,&Un2[ind], temp2);	
+				bc_compact( nx1,nx2,&Un3[ind], temp3);	
+// % then sum up those dno's that haven been solved
+				int ind2 = (n-k)*nx1*nx2*nx2*nx1*3;
+				dno_act(nx1,nx2,temp1,&Gn_m_mUm1[ind2],&Gn_m_mUm2[ind2],&Gn_m_mUm3[ind2],temp11);
+				dno_act(nx1,nx2,temp2,&Gn_m_mUm1[ind2],&Gn_m_mUm2[ind2],&Gn_m_mUm3[ind2],temp21);
+				dno_act(nx1,nx2,temp3,&Gn_m_mUm1[ind2],&Gn_m_mUm2[ind2],&Gn_m_mUm3[ind2],temp31);
 
+//% sum all different orders up.
+				for(int i1 = 0; i1 < 3*nx1*nx2; i1++)
+				{
+					temp111[i1] += temp11[i1];
+					temp211[i1] += temp21[i1];
+					temp311[i1] += temp31[i1];
+				}
 
-
+			}
+			
+			int index = nx1*nx2*3*(n*nx1*nx2 + i*nx2 + j);	
+			for(int i1 = 0;i1<nx1*nx2*3;i1++)
+			{
+				Gn_m_mUm1[index + i1] = right1[i1] - temp111[i1];
+				Gn_m_mUm2[index + i1] = right2[i1] - temp211[i1];
+				Gn_m_mUm3[index + i1] = right3[i1] - temp311[i1];
+			}
 
 			delete right1,right2,right3;
 			delete temp111,temp211,temp311;
@@ -668,7 +797,7 @@ int main()
 */
 	int N,nx1,nx2;
 	double epsilon,d1,d2,dx1,dx2;
-	N = 2;
+	N = 1;
 	nx1 = 8;
 	nx2 = 8;
 	epsilon =1e-6;
@@ -980,7 +1109,8 @@ int main()
 	solve_DNSO(nx1,nx2,N,fpn,alpha1p,alpha2p,betap1,betap2,Un1,Un2,Un3,lambda,mu,Gn_m_qUq1,Gn_m_qUq2,Gn_m_qUq3);
 
 	ofstream o1("Gn1.dat");
-	int ind = nx1*nx2*(1*nx2*3 + 3*3 + 2);
+//	int ind = nx1*nx2*( 1*nx2*3 + 3*3 + 2);
+	int ind = nx1*nx2*(nx1*nx2*3 + 1*nx2*3 + 3*3 + 2);
 	for(int i=0;i<nx1;i++)
 	{
 		for(int j=0;j<nx2;j++)
