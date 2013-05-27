@@ -469,47 +469,23 @@ void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alph
 
 	stress_pre(nx1,nx2,u1,alpha1p,alpha2p,betap1,betap2,p_wave_1,s_wave_1,wave_1,DIV_1,par_1_2,par_1_3,par_2_3,par_3_3);
 	
-	//stress_pre(nx1,nx2,u2,alpha1p,alpha2p,betap1,betap2,p_wave_2,s_wave_2,wave_2,DIV_2,Par_1_2,Par_1_3,Par_2_3,Par_3_3);
-	ofstream d4("pw1.dat");	
-	for(int i1 = 0;i1<3;i1++)
-	{
-		for(int i2 =0;i2<nx1;i2++)
-		{
-			for(int i3=0;i3<nx2;i3++)
-			{ d4<<setprecision(20)<<wave_1[i1*nx1*nx2 + i2*nx2 + i3]<<" "; }
-			d4<<endl;
-			
-		}
-		d4<<endl;
-	}				
-	d4.close();
-
-/*
+	stress_pre(nx1,nx2,u2,alpha1p,alpha2p,betap1,betap2,p_wave_2,s_wave_2,wave_2,DIV_2,Par_1_2,Par_1_3,Par_2_3,Par_3_3);
+	ofstream d4_1("in1.in");	
+	ofstream d4_2("in2.in");
+	ofstream d4_3("b.out");
 	
-	init1(3*nx1*nx2,p_wave_1);	
-	init1(3*nx1*nx2,s_wave_1);	
-	init1(3*nx1*nx2,wave_1);	
-	init1(3*nx1*nx2,p_wave_2);	
-	init1(3*nx1*nx2,s_wave_2);	
-	init1(3*nx1*nx2,wave_2);	
-	init1(nx1*nx2,DIV_1);	
-	init1(nx1*nx2,par_1_2);	
-	init1(nx1*nx2,par_1_3);	
-	init1(nx1*nx2,par_2_3);	
-	init1(nx1*nx2,par_3_3);	
-	init1(nx1*nx2,DIV_2);	
-	init1(nx1*nx2,Par_1_2);	
-	init1(nx1*nx2,Par_1_3);	
-	init1(nx1*nx2,Par_2_3);	
-	init1(nx1*nx2,Par_3_3);	
-	*/	
-	complex<double> *tmp1,*tmp2,*tmp3;
+
+	complex<double> *tmp1,*tmp2,*tmp3,*t1,*t2;
 	tmp1 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
 	tmp2 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
 	tmp3 = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+	t1 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	t2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
 	init(tmp1,nx1*nx2*3);
 	init(tmp2,nx1*nx2*3);
 	init(tmp3,nx1*nx2*3);
+	init(t1,nx1*nx2*3);
+	init(t2,nx1*nx2*3);
 
 // now calculate the first dimension
 	mult(nx1*nx2,lambda,DIV_1,tmp1);
@@ -522,13 +498,48 @@ void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alph
 	mult(nx1*nx2,mu,par_1_2,tmp2);
 	mult(nx1*nx2,mu,Par_1_3,tmp3);
 
-	newconv3d(nx1,nx2,tmp1,fx,tmp1);
-	newconv3d(nx1,nx2,tmp2,fy,tmp2);
+		for(int i2 =0;i2<nx1;i2++)
+		{
+			for(int i3=0;i3<nx2;i3++)
+			{ d4_1<<setprecision(20)<<fx[i2*nx2 + i3]<<" "; }
+			d4_1<<endl;
+			
+		}
+		d4_1<<endl;
+
+		for(int i2 =0;i2<nx1;i2++)
+		{
+			for(int i3=0;i3<nx2;i3++)
+			{ d4_2<<setprecision(20)<<tmp1[i2*nx2 + i3]<<" "; }
+			d4_2<<endl;
+			
+		}
+		d4_2<<endl;
+
+					
+	newconv3d(nx1,nx2,tmp1,fx,t1);
+	newconv3d(nx1,nx2,tmp2,fy,t2);
 	for(int i=0;i<nx1*nx2;i++)
 	{
-		right[i] = tmp1[i] + tmp2[i] - tmp3[i];
+		right[i] = t1[i] + t2[i] - tmp3[i];
 	} 
 
+	{
+		for(int i2 =0;i2<nx1;i2++)
+		{
+			for(int i3=0;i3<nx2;i3++)
+			{ d4_3<<setprecision(20)<<t1[i2*nx2 + i3]<<" "; }
+			d4_3<<endl;
+			
+		}
+		d4_3<<endl;
+
+	}
+
+	d4_1.close();
+	d4_2.close();
+	d4_3.close();
+	
 // now calculate the second dimension
 	int ind2 = nx1*nx2;
 	mult(nx1*nx2,mu,par_1_2,&tmp1[ind2]);
@@ -568,7 +579,7 @@ void stress_n(complex<double> *u1,complex<double> *u2,double alpha1p,double alph
 	delete p_wave_2,s_wave_2,wave_2;
 	delete DIV_1,par_1_2,par_1_3,par_2_3,par_3_3;
 	delete DIV_2,Par_1_2,Par_1_3,Par_2_3,Par_3_3;
-	delete tmp1,tmp2,tmp3;
+	delete tmp1,tmp2,tmp3,t1,t2;
 
 }
 
@@ -620,15 +631,15 @@ void gn_engine(int n,int nx1,int nx2,complex<double>* Un1,complex<double>* Un2,c
 	init(fx,nx1*nx2);
 	init(fy,nx1*nx2);
 	mult(nx1*nx2,alpha1p,&fpn[nx1*nx2],fx);
-	mult(nx1*nx2,one,fx,fy);
+	mult(nx1*nx2,one,fx,fx);
 
 	mult(nx1*nx2,alpha2p,&fpn[nx1*nx2],fy);
 	mult(nx1*nx2,one,fy,fy);
 
 	//for(int i=0;i<nx1;i++)
 	//	for(int j=0;j<nx2;j++)
-	for(int i=1;i<2;i++)
-		for(int j=3;j<4;j++)
+	for(int i=0;i<nx1;i++)
+		for(int j=0;j<nx2;j++)
 		{
 			complex<double> *right1,*right2,*right3;
 			right1 = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
@@ -795,14 +806,19 @@ int main()
 % nx1 - Number of equally spaced gridpoints on [0,d1]
 % nx2 - Number of equally spaced gridpoints on [0,d2]
 */
+	ofstream o1("DNSO_cpp.out");
+
 	int N,nx1,nx2;
 	double epsilon,d1,d2,dx1,dx2;
-	N = 1;
+	N = 2;
 	nx1 = 8;
 	nx2 = 8;
 	epsilon =1e-6;
 	d1 = 0.53;
 	d2 = d1;
+
+// basic parameters, output-1
+	o1<<setprecision(20)<<N<<" "<<nx1<<" "<<nx2<<" "<<epsilon<<" "<<d1<<" "<<d2<<endl;
 
 	dx1 = d1/nx1;
 	dx2 = d2/nx2;
@@ -879,6 +895,11 @@ int main()
 	dg_3d_scatter(nx1,nx2,alpha1,alpha2,beta1,alpha1p,alpha2p,betap1);
 	dg_3d_scatter(nx1,nx2,alpha1,alpha2,beta2,alpha1p,alpha2p,betap2);
 // finished checking at the 1st checking point 5/12/13
+// the scatter setup, output-2
+	for(int i=0;i<nx1*nx2;i++)	o1<<alpha1p[i]<<" "; o1<<endl;
+	for(int i=0;i<nx1*nx2;i++)	o1<<alpha2p[i]<<" "; o1<<endl;
+	for(int i=0;i<nx1*nx2;i++)	o1<<real(betap1[i])<<" "<<imag(betap1[i])<<" "; o1<<endl;
+	for(int i=0;i<nx1*nx2;i++)	o1<<real(betap2[i])<<" "<<imag(betap2[i])<<" "; o1<<endl;
 
 // set up the powers of f
 	complex<double> *fpn,*fhat,*f,*fx1hat,*fx1,*fx2hat,*fx2;
@@ -934,6 +955,9 @@ int main()
 	cpnsetup3d(nx1,nx2,fhat,N,fpn);
 	
 // checkpoint 2, finished checking on 2013/5/14
+// power of f, output-3
+	for(int i=0;i<nx2*nx1*max(2,N);i++) o1<<real(fpn[i])<<" "<<imag(fpn[i])<<" "; o1<<endl;
+	
 
 // form zeta(Dirichlet) and psi(Neumann) data
 	complex<double> *N_inv,*N_orig,*a1,*a2,*a3;
@@ -1099,6 +1123,10 @@ int main()
 
 	}
 // check point 4, finished checking
+// boundary condition, output-4
+	for(int i=0;i<(N+1)*9*nx1*nx2*nx1*nx2;i++)	o1<<real(Un1[i])<<" "<<imag(Un1[i])<<" "; o1<<endl;
+	for(int i=0;i<(N+1)*9*nx1*nx2*nx1*nx2;i++)	o1<<real(Un2[i])<<" "<<imag(Un2[i])<<" "; o1<<endl;
+	for(int i=0;i<(N+1)*9*nx1*nx2*nx1*nx2;i++)	o1<<real(Un3[i])<<" "<<imag(Un3[i])<<" "; o1<<endl;
 
 // Now here comes the main function
 // First just do the 0-th order perturbation
@@ -1107,9 +1135,13 @@ int main()
 	Gn_m_qUq2 = (complex<double>*)calloc(3*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
 	Gn_m_qUq3 = (complex<double>*)calloc(3*(N+1)*nx1*nx2*nx1*nx2,sizeof(complex<double>));
 	solve_DNSO(nx1,nx2,N,fpn,alpha1p,alpha2p,betap1,betap2,Un1,Un2,Un3,lambda,mu,Gn_m_qUq1,Gn_m_qUq2,Gn_m_qUq3);
+// DNSO results, output-5
+	for(int i=0;i<(N+1)*3*nx1*nx2*nx1*nx2;i++)	o1<<real(Gn_m_qUq1[i])<<" "<<imag(Gn_m_qUq1[i])<<" "; o1<<endl;
+	for(int i=0;i<(N+1)*3*nx1*nx2*nx1*nx2;i++)	o1<<real(Gn_m_qUq2[i])<<" "<<imag(Gn_m_qUq2[i])<<" "; o1<<endl;
+	for(int i=0;i<(N+1)*3*nx1*nx2*nx1*nx2;i++)	o1<<real(Gn_m_qUq3[i])<<" "<<imag(Gn_m_qUq2[i])<<" "; o1<<endl;
 
-	ofstream o1("Gn1.dat");
-//	int ind = nx1*nx2*( 1*nx2*3 + 3*3 + 2);
+
+/*
 	int ind = nx1*nx2*(nx1*nx2*3 + 1*nx2*3 + 3*3 + 2);
 	for(int i=0;i<nx1;i++)
 	{
@@ -1123,7 +1155,7 @@ int main()
 		}
 		o1<<endl;
 	}
-
+*/
 
 	o1.close();	 
 	delete pp1,pp2,alpha1p,alpha2p,betap1,betap2;
