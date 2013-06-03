@@ -146,6 +146,122 @@ void complexGaussElimination(complex<double> *A[],
 
 }  
 
+void fc2c(fftw_complex *in, complex<double> *out, int n)  //http://www.physicsforums.com/showthread.php?t=97608
+{
+	int i;
+	for(i=0;i<n;i++) {
+		out[i] = complex<double>(in[i][0],in[i][1]);
+	}
+}
+
+void c2fc(complex<double> *in, fftw_complex *out, int n)
+{
+	int i;
+	for(i=0;i<n;i++) 
+	{
+		out[i][0] = real(in[i]);
+		out[i][1] = imag(in[i]); 
+	}
+}
+
+void fft2(complex<double> *f,int nx,int ny,complex<double> *fhat)
+{
+	fftw_complex *in,*out;
+	in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*(nx*ny));
+	out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*(nx*ny));
+	 c2fc(f,in,nx*ny);
+
+	fftw_plan p;
+	p = fftw_plan_dft_2d(nx,ny,in,out,FFTW_FORWARD,FFTW_ESTIMATE);
+	fftw_execute(p);
+	
+	fc2c(out,fhat,nx*ny);
+	fftw_destroy_plan(p);
+}
+
+void ifft2(complex<double> *fhat,int nx,int ny,complex<double> *f)
+{
+	fftw_complex *in,*out;
+	in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*(nx*ny));
+	out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*(nx*ny));
+	 c2fc(fhat,in,nx*ny);
+
+	fftw_plan p;
+	p = fftw_plan_dft_2d(nx,ny,in,out,FFTW_BACKWARD,FFTW_ESTIMATE);
+	fftw_execute(p);
+	
+	fc2c(out,f,nx*ny);
+	fftw_destroy_plan(p);
+	for(int i=0;i<nx;i++)
+		for(int j=0;j<ny;j++)
+		{
+			int k= i*ny + j;
+			f[k] = f[k]/(double)(nx*ny);
+		}
+}
+
+void fhatsetup3d(int nx,int ny,complex<double>* fhat)
+{
+	switch(1)
+		case 1:
+		{
+			int k1 = ny + 1;
+			fhat[k1] = nx*ny/2.0;
+			int k2 = (nx-1)*ny + (ny-1);
+			fhat[k2] = nx*ny/2.0;
+			break;
+
+		}
+}
+
+void newconv3d(int nx,int ny,complex<double>* a, complex<double>* b, complex<double>* c)
+{
+	complex<double> *a_tmp,*b_tmp;	
+	a_tmp = (complex<double>*)calloc(nx*ny,sizeof(complex<double>));
+	b_tmp = (complex<double>*)calloc(nx*ny,sizeof(complex<double>));
+	ifft2(a,nx,ny,a_tmp);
+	ifft2(b,nx,ny,b_tmp);
+	for(int i=0;i<nx*ny;i++)
+	{
+		a_tmp[i] *= b_tmp[i];
+	}
+	fft2(a_tmp,nx,ny,c);
+}
+
+
+void direct_cal_deep(int nx1,int nx2,complex<double> a,complex<double> b,complex<double> c,complex<double> a1,complex<double> b1,complex<double> c1,complex<double> b_1,complex<double> b_2,complex<double>* f,double epsilon,complex<double>* base_hat,complex<double>* bc)
+{
+	complex<double> *f_temp,*f_temp_hat;
+	f_temp = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	f_temp_hat = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+
+	init(f_temp,nx1*nx2);
+	init(f_temp_hat,nx1*nx2);
+
+	for(int i=0;i<nx2*nx1;i++)
+	{
+		f_temp[i] = a*a1* exp(one*b_1*epsilon*f[i])
+				  + b*b1* exp(one*b_2*epsilon*f[i]) 
+				  + c*c1* exp(one*b_2*epsilon*f[i]);
+	}
+	fft2(f_temp,nx1,nx2,f_temp_hat);
+	newconv3d(nx1,nx2,f_temp_hat,base_hat,bc);
+	delete f_temp,f_temp_hat;
+			
+}
+
+void direct_cal(int nx1,int nx2,complex<double> a1,complex<double> a2,complex<double> b1,complex<double> b2,complex<double> a,complex<double> b,complex<double> c,complex<double>* f,double epsilon,int m,int n,complex<double>* bc1,complex<double>* bc2,complex<double>* bc3)
+{
+	complex<double>* base_hat;
+	base_hat = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	init(base_hat,nx1*nx2);
+	base_hat[m*nx2 + n] = 1;
+	direct_cal_deep(nx1,nx2,a,b,c,a1,-b2,0,b1,b2,f,epsilon,base_hat,bc1);
+   
+
+	delete base_hat;	
+}
+
 int main()
 {
 
@@ -155,7 +271,7 @@ int main()
 % nx2 - Number of equally spaced gridpoints on [0,d2]
 */
 	
-	ifstream o1("DNSO_cpp.out");
+	ifstream o1("DNSO_cpp1.out");
 	int N,nx1,nx2;
 	double epsilon,d1,d2,dx1,dx2;
 	o1>>N>>nx1>>nx2>>epsilon>>d1>>d2;
@@ -194,7 +310,17 @@ int main()
 	for(int i=0;i<nx1*nx2;i++)	o1>>betap2[i];
 
 // set up the powers of f
-	complex<double> *fpn;
+	
+	complex<double> *fpn,*f,*fhat;
+
+	fhat = (complex<double> *)calloc(nx1*nx2,sizeof(complex<double>));
+	f = (complex<double> *)calloc(nx1*nx2,sizeof(complex<double>));
+
+	init(f,nx1*nx2);
+	init(fhat,nx1*nx2);
+	fhatsetup3d(nx1,nx2,fhat);
+	ifft2(fhat,nx1,nx2,f);
+
 	fpn = (complex<double> *)calloc(nx1*nx2*max(2,N+1),sizeof(complex<double>));
 	for(int i=0;i<nx2*nx1*max(2,N+1);i++) o1>>fpn[i];
 
@@ -287,16 +413,26 @@ int main()
 		for(int m=0;m<nx1;m++)
 			for(int n =0;n<nx2;n++)
 			{
-				complex<double> *N_inv_test;
-				N_inv_test = (complex<double>*)calloc(9,sizeof(complex<double>));
-				init(N_inv_test,9);
+				complex<double> **N_inv_test;
+				N_inv_test =(complex<double>**)calloc(3,sizeof(complex<double>*));
 				ind = nx1*nx2*(m*nx2 + n);
 
-				mult(9,1,&N_inv[ind],N_inv_test);
-				a1 = N_inv_test[0];
-				a2 = N_inv_test[3];
-				b1 = N_inv_test[2*3];
-				b2 = -N_inv_test[1];
+				for(int i1 = 0;i1<3;i1++)
+				{
+					N_inv_test[i1] = (complex<double>*)calloc(3,sizeof(complex<double>));
+					for(int j1=0;j1<3;j1++)
+					{
+						int ind2 = i1*3 + j1;
+						N_inv_test[i1][j1] = N_inv[ind + ind2];
+					}
+				}
+
+						
+
+				a1 = N_inv_test[0][0];
+				a2 = N_inv_test[1][0];
+				b1 = N_inv_test[2][0];
+				b2 = -N_inv_test[0][1];
 
 				complex<double> *bb,*cc;
 				bb = (complex<double>*)calloc(3,sizeof(complex<double>));
@@ -313,9 +449,14 @@ int main()
 				bc2 = (complex<double>*)calloc(nx2*nx1,sizeof(complex<double>));
 				bc3 = (complex<double>*)calloc(nx2*nx1,sizeof(complex<double>));
 				
-				
-		
-				delete N_inv_test,bb,cc;
+				//direct_cal(nx1,nx2,a1,a2,b1,b2,a,b,c,f,epsilon,m,n,bc1,bc2,bc3);
+        				
+	/*	
+				for(int i1=0;i1<3;i1++)
+					delete N_inv_test[i1];
+				delete[] N_inv_test;
+*/
+				delete bb,cc;
 				delete bc1,bc2,bc3;
 
 			}
