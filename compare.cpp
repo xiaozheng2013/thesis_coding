@@ -169,7 +169,7 @@ void fft2(complex<double> *f,int nx,int ny,complex<double> *fhat)
 	fftw_complex *in,*out;
 	in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*(nx*ny));
 	out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*(nx*ny));
-	 c2fc(f,in,nx*ny);
+	c2fc(f,in,nx*ny);
 
 	fftw_plan p;
 	p = fftw_plan_dft_2d(nx,ny,in,out,FFTW_FORWARD,FFTW_ESTIMATE);
@@ -177,6 +177,8 @@ void fft2(complex<double> *f,int nx,int ny,complex<double> *fhat)
 	
 	fc2c(out,fhat,nx*ny);
 	fftw_destroy_plan(p);
+	fftw_free(in);
+	fftw_free(out);
 }
 
 void ifft2(complex<double> *fhat,int nx,int ny,complex<double> *f)
@@ -192,6 +194,8 @@ void ifft2(complex<double> *fhat,int nx,int ny,complex<double> *f)
 	
 	fc2c(out,f,nx*ny);
 	fftw_destroy_plan(p);
+	fftw_free(in);
+	fftw_free(out);
 	for(int i=0;i<nx;i++)
 		for(int j=0;j<ny;j++)
 		{
@@ -232,21 +236,69 @@ void newconv3d(int nx,int ny,complex<double>* a, complex<double>* b, complex<dou
 void direct_cal_deep(int nx1,int nx2,complex<double> a,complex<double> b,complex<double> c,complex<double> a1,complex<double> b1,complex<double> c1,complex<double> b_1,complex<double> b_2,complex<double>* f,double epsilon,complex<double>* base_hat,complex<double>* bc)
 {
 	complex<double> *f_temp,*f_temp_hat;
-	f_temp = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
-	f_temp_hat = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
-
+//	f_temp = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+//	f_temp_hat = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+	f_temp = new complex<double>[nx1*nx2];
+	f_temp_hat = new complex<double>[nx1*nx2];
+	
+//	f_temp = new complex<double>(nx1*nx2);
+//	f_temp_hat = new complex<double>(nx1*nx2);
 	init(f_temp,nx1*nx2);
 	init(f_temp_hat,nx1*nx2);
 
+	ofstream dd("test.out");
 	for(int i=0;i<nx2*nx1;i++)
 	{
 		f_temp[i] = a*a1* exp(one*b_1*epsilon*f[i])
 				  + b*b1* exp(one*b_2*epsilon*f[i]) 
 				  + c*c1* exp(one*b_2*epsilon*f[i]);
+		//cout<<"f_temp["<<i<<"]= "<<f_temp[i]<<endl;
+		dd<<f_temp[i]<<" ";
+/*
+		
+		cout<<"i = "<<i<<" "<< a*a1* exp(one*b_1*epsilon*f[i]);
+		cout<<" a = "<<a<<" a1="<<a1<<" b_1 = "<<b_1;
+		cout<<b*b1* exp(one*b_2*epsilon*f[i]);
+		cout<<c*c1* exp(one*b_2*epsilon*f[i]);
+		//if(radius(f_temp[i]) > 100) 
+		cout<<"f_temp[i] = "<<f_temp[i]<<endl;
+*/
 	}
+	
+//	cout<<"Lover"<<endl;
+/*
+	cout<<"size of complex<double> is "<<sizeof(complex<double>)<<endl;
+	cout<<"f_temp is "<<sizeof(*f_temp)<<" bytes!"<<endl;
+	for(int i = 0;i<nx1;i++)
+	{
+		for(int j=0;j<nx2;j++)
+		 	cout<<f_temp[i*nx2 + j]<<" ";
+		cout<<endl;
+	}
+*/
+	
+	fftw_complex *in,*out;
+	in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*(nx1*nx2));
+	out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*(nx1*nx2));
+
+	c2fc(f_temp,in,nx1*nx2);
+
+	fftw_plan p;
+//	cout<<"Lover"<<endl;
+	p = fftw_plan_dft_2d(nx1,nx2,in,out,FFTW_FORWARD,FFTW_ESTIMATE);
+	fftw_execute(p);
+	
+	fc2c(out,f_temp_hat,nx1*nx2);
+	fftw_destroy_plan(p);
+	fftw_free(in);
+	fftw_free(out);
 	fft2(f_temp,nx1,nx2,f_temp_hat);
 	newconv3d(nx1,nx2,f_temp_hat,base_hat,bc);
+/*
+*/
 	delete f_temp,f_temp_hat;
+	//free(f_temp);
+	//free(f_temp_hat);
 			
 }
 
@@ -254,12 +306,13 @@ void direct_cal(int nx1,int nx2,complex<double> a1,complex<double> a2,complex<do
 {
 	complex<double>* base_hat;
 	base_hat = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+//	base_hat = new complex<double>(nx1*nx2);
 	init(base_hat,nx1*nx2);
 	base_hat[m*nx2 + n] = 1;
 	direct_cal_deep(nx1,nx2,a,b,c,a1,-b2,0,b1,b2,f,epsilon,base_hat,bc1);
-   
 
 	delete base_hat;	
+	//free(base_hat);
 }
 
 int main()
@@ -271,10 +324,13 @@ int main()
 % nx2 - Number of equally spaced gridpoints on [0,d2]
 */
 	
-	ifstream o1("DNSO_cpp1.out");
+	//ifstream o1("DNSO_cpp1.out");
+
+	ifstream o1("DNSO_cpp.out");
 	int N,nx1,nx2;
 	double epsilon,d1,d2,dx1,dx2;
 	o1>>N>>nx1>>nx2>>epsilon>>d1>>d2;
+	cout<<"N = "<<N<<" nx1 = "<<nx1<<" nx2 = "<<nx2<<" epsilon = "<<epsilon<<" d1 = "<<d1<<" d2 = "<<d2<<endl;
 /*
 	% mu lambda rho- physical parameters
 	% c_1, c_2 are square of the speed of dilatational and rotational wave
@@ -296,18 +352,21 @@ int main()
 	beta2 = k_2;				
 
 // 3D scatter
-	double *alpha1p,*alpha2p,*pp1,*pp2;
+	double *alpha1p,*alpha2p;///`j,*pp1,*pp2;
 	complex<double> *betap1,*betap2;
 	alpha1p = (double*)calloc(nx1*nx2,sizeof(double));
 	alpha2p = (double*)calloc(nx1*nx2,sizeof(double));
+/*
 	pp1 = (double*)calloc(nx1*nx2,sizeof(double));
 	pp2 = (double*)calloc(nx1*nx2,sizeof(double));
+*/
 	betap1 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
 	betap2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
 	for(int i=0;i<nx1*nx2;i++)	o1>>alpha1p[i];
 	for(int i=0;i<nx1*nx2;i++)	o1>>alpha2p[i];
 	for(int i=0;i<nx1*nx2;i++)	o1>>betap1[i];
 	for(int i=0;i<nx1*nx2;i++)	o1>>betap2[i];
+	
 
 // set up the powers of f
 	
@@ -316,10 +375,12 @@ int main()
 	fhat = (complex<double> *)calloc(nx1*nx2,sizeof(complex<double>));
 	f = (complex<double> *)calloc(nx1*nx2,sizeof(complex<double>));
 
+
 	init(f,nx1*nx2);
 	init(fhat,nx1*nx2);
 	fhatsetup3d(nx1,nx2,fhat);
 	ifft2(fhat,nx1,nx2,f);
+//	for(int i=0;i<nx1*nx2;i++) cout<<"f["<<i<<"] = "<<f[i]<<endl;
 
 	fpn = (complex<double> *)calloc(nx1*nx2*max(2,N+1),sizeof(complex<double>));
 	for(int i=0;i<nx2*nx1*max(2,N+1);i++) o1>>fpn[i];
@@ -336,6 +397,14 @@ int main()
 	init(a1,3*nx1*nx2);
 	init(a2,3*nx1*nx2);
 	init(a3,3*nx1*nx2);
+	complex<double> tmp1[3]; // store (1 0 0)
+	complex<double> tmp2[3]; // store (0 1 0)
+	complex<double> tmp3[3]; // store (0 0 1)
+	init(tmp1,3); tmp1[0] = 1;
+	init(tmp2,3); tmp2[1] = 1;
+	init(tmp3,3); tmp3[2] = 1;
+	
+
 	for(int i=0;i<nx1;i++)
 		for(int j=0;j<nx2;j++)
 		{
@@ -360,17 +429,22 @@ int main()
 					tmp[i1][j1] = N_inv[ind + ind2];
 				}
 			}
-			
+//	cout<<"i = "<<i<<" j = "<<j<<" love"<<endl;
+/*			
 			complex<double> tmp1[3]; // store (1 0 0)
 			complex<double> tmp2[3]; // store (0 1 0)
 			complex<double> tmp3[3]; // store (0 0 1)
 			init(tmp1,3); tmp1[0] = 1;
 			init(tmp2,3); tmp2[1] = 1;
 			init(tmp3,3); tmp3[2] = 1;
+*/
 			int ind3 = i*3*nx2 + j*3;
 			complexGaussElimination(tmp,tmp1,&a1[ind3],3);
 			complexGaussElimination(tmp,tmp2,&a2[ind3],3);
 			complexGaussElimination(tmp,tmp3,&a3[ind3],3);
+			
+		//	for(int i1 = 0;i1<3;i1++)
+		//		delete tmp[i1];
 			/*
 			if(i==0&&j==0)
 			{
@@ -403,9 +477,23 @@ int main()
 		for(int i=0;i<(N+1)*3*nx1*nx2*nx1*nx2;i++)	o1>>Gn_m_qUq1[i];
 		for(int i=0;i<(N+1)*3*nx1*nx2*nx1*nx2;i++)	o1>>Gn_m_qUq2[i];
 		for(int i=0;i<(N+1)*3*nx1*nx2*nx1*nx2;i++)	o1>>Gn_m_qUq3[i];
-	
+
+/*
+	for(int i1=0;i1<1;i1++)
+	{
+		for(int j1=0;j1<2;j1++)
+		{
+			for(int k1 =0;k1<9;k1++)
+			cout<<N_inv[9*(i1*nx2 + j1) + k1]<<" ";
+			cout<<endl;
+		}
+		cout<<endl;
+	}
+*/
+
 	for(int dim = 0;dim<3;dim++)
 	{
+
 		complex<double> *error;
 		error = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
 		complex<double> a1,a2,b1,b2,a,b,c;
@@ -415,19 +503,22 @@ int main()
 			{
 				complex<double> **N_inv_test;
 				N_inv_test =(complex<double>**)calloc(3,sizeof(complex<double>*));
-				ind = nx1*nx2*(m*nx2 + n);
+				//N_inv_test = new complex<double>*[3];
+				ind = 9*(m*nx2 + n);
 
 				for(int i1 = 0;i1<3;i1++)
 				{
 					N_inv_test[i1] = (complex<double>*)calloc(3,sizeof(complex<double>));
+			//		N_inv_test[i1] = new complex<double>(3);
 					for(int j1=0;j1<3;j1++)
 					{
+//	cout<<"i = "<<i1<<" j ="<<j1<<" love"<<endl;
 						int ind2 = i1*3 + j1;
 						N_inv_test[i1][j1] = N_inv[ind + ind2];
+						//cout<<N_inv_test[i1][j1]<<" ";
 					}
+					//cout<<endl;
 				}
-
-						
 
 				a1 = N_inv_test[0][0];
 				a2 = N_inv_test[1][0];
@@ -437,34 +528,152 @@ int main()
 				complex<double> *bb,*cc;
 				bb = (complex<double>*)calloc(3,sizeof(complex<double>));
 				cc = (complex<double>*)calloc(3,sizeof(complex<double>));
-				init(bb,9);
-				init(cc,9);
+				init(bb,3);
+				init(cc,3);
 				bb[dim] = 1;
 			
 				complexGaussElimination(N_inv_test,bb,cc,3);
 				a = cc[0]; b = cc[1]; c = cc[2];
+
 
 				complex<double> *bc1,*bc2,*bc3;
 				bc1 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
 				bc2 = (complex<double>*)calloc(nx2*nx1,sizeof(complex<double>));
 				bc3 = (complex<double>*)calloc(nx2*nx1,sizeof(complex<double>));
 				
-				//direct_cal(nx1,nx2,a1,a2,b1,b2,a,b,c,f,epsilon,m,n,bc1,bc2,bc3);
-        				
-	/*	
+				direct_cal(nx1,nx2,a1,a2,b1,b2,a,b,c,f,epsilon,m,n,bc1,bc2,bc3);
+				
+				complex<double> *result,*base,*base_hat,*z1,*z2,*base_1,*base_2;
+				result = (complex<double>*)calloc(nx1*nx2*3,sizeof(complex<double>));
+				base_hat = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				base = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				base_1 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				base_2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				z1 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				z2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+
+				init(result,nx1*nx2*3);
+				init(base_hat,nx1*nx2);
+				init(base,nx1*nx2);
+				init(base_1,nx1*nx2);
+				init(base_2,nx1*nx2);
+				init(z2,nx1*nx2);
+				init(z1,nx1*nx2);
+				for(int order = 0;order <N+1;order++)	
+					for(int k1=0;k1<nx1;k1++)
+						for(int k2=0;k2<nx2;k2++)
+						{
+							int ind = nx1*nx2*3*(order*nx1*nx2 + k1*nx2 + k2);
+							int ind1 = k1*nx2 + k2;
+							for(int kk = 0;kk<nx1*nx2*3;kk++)
+							result[kk] += ( bc1[ind1]*Gn_m_qUq1[ind + kk]
+										+ bc2[ind1]*Gn_m_qUq2[ind + kk]
+										+ bc3[ind1]*Gn_m_qUq3[ind + kk]
+										)*pow(epsilon,order); 
+						}
+        			
+				ifft2(result,nx1,nx2,result);
+				ifft2(&result[nx1*nx2],nx1,nx2,&result[nx1*nx2]);
+				ifft2(&result[2*nx1*nx2],nx1,nx2,&result[nx1*nx2*2]);
+
+// here we need to check the real result	
+				base_hat[m*nx2 + n] = 1;	
+				ifft2(base_hat,nx1,nx2,base);
+				for(int i1 = 0;i1<nx1*nx2;i1++)
+				{
+					z1[i1] = exp(one*b1*epsilon*f[i1]);
+					z2[i1] = exp(one*b2*epsilon*f[i1]);
+					base_1[i1] = z1[i1]*base[i1];
+					base_2[i1] = z2[i1]*base[i1];
+				} // in physical space
+				
+				complex<double> *p_wave,*s_wave,*wave_d1,*wave_d2,*wave_d3,
+								*DIV,*u_partial_1_2,*u_partial_1_3,
+								*u_partial_2_3,*u_3_partial_3,*G_result;
+
+				p_wave = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+				s_wave = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+				G_result = (complex<double>*)calloc(3*nx1*nx2,sizeof(complex<double>));
+
+				wave_d1 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				wave_d2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				wave_d3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				u_partial_1_2 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				u_partial_1_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				u_partial_2_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				u_3_partial_3 = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				DIV = (complex<double>*)calloc(nx1*nx2,sizeof(complex<double>));
+				init(p_wave,3*nx1*nx2);
+				init(s_wave,3*nx1*nx2);
+				init(G_result,3*nx1*nx2);
+				init(wave_d1,nx1*nx2);
+				init(wave_d2,nx1*nx2);
+				init(wave_d3,nx1*nx2);
+				init(u_partial_1_2,nx1*nx2);
+				init(u_partial_1_3,nx1*nx2);
+				init(u_partial_2_3,nx1*nx2);
+				init(u_3_partial_3,nx1*nx2);
+				init(DIV,nx1*nx2);
+
+
+				mult(nx1*nx2,a*a1,base_1,p_wave);
+				mult(nx1*nx2,a*a2,base_1,&p_wave[nx1*nx2]);
+				mult(nx1*nx2,a*b1,base_1,&p_wave[2*nx1*nx2]);
+
+				mult(nx1*nx2,-b*b2,base_2,s_wave);
+				mult(nx1*nx2,-c*b2,base_2,&s_wave[nx1*nx2]);
+				mult(nx1*nx2,a1*b + c*a2,base_2,&s_wave[2*nx1*nx2]);
+
+				for(int i1=0;i1<nx1*nx2;i1++)
+				{
+					wave_d1[i1] = p_wave[i1] + s_wave[i1];	
+					wave_d2[i1] = p_wave[nx1*nx2 + i1] + s_wave[nx1*nx2 + i1];	
+					wave_d3[i1] = p_wave[2*nx1*nx2+i1] + s_wave[2*nx1*nx2+i1];	
+				}
+// useful patterns, which are all in Phy-S
+				mult(nx1*nx2,one*a*pow(k_1,2),base_1,DIV);
+/*
+				complex<double> aa = one*a*pow(k_1,2);
+cout<<"love"<<endl;
+					DIV[i1] = one*a*pow(k_1,2)*base_1[i1];
+*/
+				for(int i1 = 0;i1<nx1*nx2;i1++)
+				{
+					u_partial_1_2[i1] = one*(a1*wave_d2[i1] + a2*wave_d1[i1]);
+					u_partial_1_3[i1] = one*(a1*wave_d3[i1] + 
+										b1*p_wave[i1] +
+										b2*s_wave[i1]);						
+					u_partial_2_3[i1] = one*(a2*wave_d3[i1] +
+										b1*p_wave[nx1*nx2 + i1] +
+										b2*s_wave[nx1*nx2 + i1]);	
+					u_3_partial_3[i1] = one*(b1*p_wave[2*nx1*nx2 + i1] +
+										b2*s_wave[2*nx1*nx2 + i1]);
+				}
+
+
+
+
 				for(int i1=0;i1<3;i1++)
 					delete N_inv_test[i1];
-				delete[] N_inv_test;
-*/
+				delete N_inv_test;
+
 				delete bb,cc;
 				delete bc1,bc2,bc3;
-
+				delete result,base,base_1,base_2,base_hat,z1,z2;
 			}
 
 		delete error;
 	
 
 	}
+
+	delete alpha1p,alpha2p,betap1,betap2;
+	delete fhat,f,fpn;
+	delete N_inv, N_orig, a1,a2,a3;
+	delete Un1, Un2, Un3;
+	delete Gn_m_qUq1,Gn_m_qUq2,Gn_m_qUq3;
+	return 0;
+
 	
 
 
